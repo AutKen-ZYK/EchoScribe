@@ -151,8 +151,12 @@ TEST_CASE("gguf parser: rejects non-gguf file", "[gguf]") {
 }
 
 // Real-model smoke test: skipped automatically when no model is present.
+#ifndef ECHOSCRIBE_MODELS_DIR
+#define ECHOSCRIBE_MODELS_DIR "models"
+#endif
+
 TEST_CASE("gguf parser: real whisper tiny model", "[gguf][model]") {
-    const char* candidates[] = {"models/whisper-tiny-F16.gguf"};
+    const char* candidates[] = {ECHOSCRIBE_MODELS_DIR "/whisper-tiny-F16.gguf"};
     std::string found;
     for (const char* c : candidates) {
         std::ifstream f(c, std::ios::binary | std::ios::ate);

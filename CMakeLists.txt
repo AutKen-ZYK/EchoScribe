@@ -15,6 +15,9 @@ add_library(echoscribe_core
     src/tensor/tensor.cpp
     src/gguf/gguf.cpp
     src/gguf/loader.cpp
+    src/frontend/fft.cpp
+    src/frontend/mel.cpp
+    src/frontend/logmel.cpp
 )
 target_include_directories(echoscribe_core PUBLIC src)
 

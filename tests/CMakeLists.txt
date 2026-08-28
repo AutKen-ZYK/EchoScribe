@@ -10,8 +10,13 @@ FetchContent_MakeAvailable(catch2)
 add_executable(tests
     test_tensor.cpp
     test_gguf.cpp
+    test_fft.cpp
+    test_frontend.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain echoscribe_core)
+target_compile_definitions(tests PRIVATE
+    ECHOSCRIBE_MODELS_DIR="${CMAKE_SOURCE_DIR}/models"
+)
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(CTest)

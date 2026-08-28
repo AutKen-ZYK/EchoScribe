@@ -12,6 +12,7 @@ add_executable(tests
     test_gguf.cpp
     test_fft.cpp
     test_frontend.cpp
+    test_ops.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain echoscribe_core)
 target_compile_definitions(tests PRIVATE

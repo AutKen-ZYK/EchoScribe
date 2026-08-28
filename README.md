@@ -7,7 +7,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M0: build skeleton + CLI
 - [x] M1: GGUF parsing + mmap weight loading
 - [x] M2: log-mel frontend (FFT from scratch)
-- [ ] M3: operator library with unit tests
+- [x] M3: operator library with unit tests
 - [ ] M4: encoder forward pass
 - [ ] M5: decoder + tokenizer (greedy)
 - [ ] M6: file transcription end-to-end

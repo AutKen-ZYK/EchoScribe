@@ -18,6 +18,10 @@ add_library(echoscribe_core
     src/frontend/fft.cpp
     src/frontend/mel.cpp
     src/frontend/logmel.cpp
+    src/ops/matmul.cpp
+    src/ops/elementwise.cpp
+    src/ops/conv1d.cpp
+    src/ops/attention.cpp
 )
 target_include_directories(echoscribe_core PUBLIC src)
 

@@ -12,15 +12,18 @@
 #include "audio/capture.hpp"
 #include "audio/wav.hpp"
 #include "cli/transcribe.hpp"
+#include "decoder/decoder.hpp"
 #include "encoder/encoder.hpp"
 #include "frontend/logmel.hpp"
 #include "gguf/gguf.hpp"
 #include "gguf/loader.hpp"
 #include "streaming/stream.hpp"
+#include "tokenizer/tokenizer.hpp"
 
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <thread>
 #include <thread>
 
 namespace {
@@ -93,6 +96,43 @@ std::atomic<bool> g_running{true};
 
 void onSigint(int) {
     g_running.store(false);
+}
+
+// Stage-by-stage timing of the whole pipeline on one wav file.
+int bench(const std::string& modelPath, const std::string& wavPath) {
+    using clk = std::chrono::steady_clock;
+
+    audio::WavData wav = audio::readWav(wavPath, 16000);
+    const size_t n = std::min(wav.samples.size(), size_t{480000});
+    const double audioSec = static_cast<double>(n) / 16000.0;
+
+    gguf::File f = gguf::File::open(modelPath);
+    whisper::Tokenizer tok(f);
+    whisper::Encoder enc(f);
+    whisper::Decoder dec(f);
+
+    auto t0 = clk::now();
+    tensor::Tensor mel = frontend::logMelSpectrogram(wav.samples.data(), n, 480000);
+    auto t1 = clk::now();
+    tensor::Tensor audio = enc.forward(mel);
+    auto t2 = clk::now();
+    std::vector<size_t> prompt = {tok.sot(), tok.languageToken("en"), tok.transcribe()};
+    auto gen = dec.generate(audio, tok, prompt, false, 448);
+    auto t3 = clk::now();
+
+    const double melMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    const double encMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    const double decMs = std::chrono::duration<double, std::milli>(t3 - t2).count();
+    const double totalSec = std::chrono::duration<double>(t3 - t0).count();
+
+    std::printf("audio: %.1f s  (%s)\n", audioSec, wavPath.c_str());
+    std::printf("  frontend : %8.1f ms\n", melMs);
+    std::printf("  encoder  : %8.1f ms\n", encMs);
+    std::printf("  decoder  : %8.1f ms  (%zu tokens)\n", decMs, gen.size());
+    std::printf("  total    : %8.1f ms   RTF = %.3f\n", totalSec * 1000.0,
+                totalSec / audioSec);
+    std::printf("  text: %s\n", tok.decode(gen).c_str());
+    return 0;
 }
 
 int runMic(const std::string& model, const std::string& lang) {
@@ -207,6 +247,7 @@ int main(int argc, char** argv) {
     bool mic = false;
     bool listTensorsFlag = false;
     bool encoderStatsFlag = false;
+    std::string benchWav;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -223,6 +264,8 @@ int main(int argc, char** argv) {
             listTensorsFlag = true;
         } else if (arg == "--encoder-stats") {
             encoderStatsFlag = true;
+        } else if (arg == "--bench" && i + 1 < argc) {
+            benchWav = argv[++i];
         } else if (!arg.empty() && arg[0] != '-') {
             inputFile = arg;
         } else {
@@ -250,6 +293,15 @@ int main(int argc, char** argv) {
             return 1;
         }
         return 0;
+    }
+
+    if (!benchWav.empty()) {
+        try {
+            return bench(model, benchWav);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "error: %s\n", e.what());
+            return 1;
+        }
     }
 
     if (!inputFile.empty()) {

@@ -12,7 +12,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M5: decoder + tokenizer (greedy)
 - [x] M6: file transcription end-to-end
 - [x] M7: real-time microphone mode (VAD + streaming)
-- [ ] M8 (optional): SIMD / OpenMP optimization
+- [x] M8: SIMD / OpenMP optimization
 
 ## Architecture
 
@@ -35,13 +35,34 @@ src/
   cli/        main entry
 ```
 
-## Dependencies
+## Performance (M8)
+
+Hand-written AVX2+FMA kernels (`ops/simd.hpp`) plus OpenMP, measured with
+`--bench tests/data/jfk.wav` (11 s audio, tiny model, same machine):
+
+| stage    | naive   | AVX2 + OpenMP | speedup |
+|----------|---------|---------------|---------|
+| frontend | 103 ms  | 110 ms        | 1.0x    |
+| encoder  | 8070 ms | 660 ms        | 12.2x   |
+| decoder  | 1385 ms | 470 ms        | 2.9x    |
+| **RTF**  | 0.86    | **0.11**      | 7.6x    |
+
+RTF = processing time / audio duration; anything < 1 is faster than real time.
+Key changes: `linear` computes `y^T = W·X^T` with AXPY inner loops for large
+batches (GEMV path for single-token decoding), `matmul` uses tiled row
+accumulation, `conv1d` was restructured into per-(o,c,k) contiguous AXPY
+accumulation, and attention scores/weighted sums use SIMD dot products.
+Numeric results are unchanged (all golden tests still pass bit-for-bit at the
+test tolerances).
 
 - CMake >= 3.16, GCC or Clang, C++17
 - [miniaudio](https://github.com/mackron/miniaudio) (vendored single header, audio capture only)
 - Catch2 v3 (tests only, via FetchContent)
+- OpenMP (optional but recommended; auto-detected by CMake)
 
 Everything else — FFT, operators, GGUF parsing — is implemented in this repo.
+On x86-64 the operator kernels are compiled with `-mavx2 -mfma` when the
+compiler supports it.
 
 ## Build
 

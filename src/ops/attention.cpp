@@ -1,11 +1,16 @@
 #include "ops/attention.hpp"
 
 #include "ops/elementwise.hpp"
-#include "ops/matmul.hpp"
+#include "ops/simd.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 namespace ops {
 
@@ -14,13 +19,14 @@ void attention(const float* q, const float* k, const float* v, float* out, size_
     // scores[i, j] = q[i] . k[j] / sqrt(dk)
     std::vector<float> scores(tq * tk);
     const float scale = 1.0f / std::sqrt(static_cast<float>(dk));
-    for (size_t i = 0; i < tq; ++i) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (long long ii = 0; ii < static_cast<long long>(tq); ++ii) {
+        const size_t i = static_cast<size_t>(ii);
+        const float* qrow = q + i * dk;
         for (size_t j = 0; j < tk; ++j) {
-            float acc = 0.0f;
-            for (size_t d = 0; d < dk; ++d) {
-                acc += q[i * dk + d] * k[j * dk + d];
-            }
-            scores[i * tk + j] = acc * scale;
+            scores[i * tk + j] = ops::dotProduct(qrow, k + j * dk, dk) * scale;
         }
         if (causal) {
             const size_t limit = i + qOffset;
@@ -31,15 +37,16 @@ void attention(const float* q, const float* k, const float* v, float* out, size_
     }
     softmax(scores.data(), tq, tk);
 
-    for (size_t i = 0; i < tq; ++i) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (long long ii = 0; ii < static_cast<long long>(tq); ++ii) {
+        const size_t i = static_cast<size_t>(ii);
         float* orow = out + i * dv;
         std::memset(orow, 0, dv * sizeof(float));
+        const float* prow = scores.data() + i * tk;
         for (size_t j = 0; j < tk; ++j) {
-            const float p = scores[i * tk + j];
-            const float* vrow = v + j * dv;
-            for (size_t d = 0; d < dv; ++d) {
-                orow[d] += p * vrow[d];
-            }
+            ops::axpy(prow[j], v + j * dv, orow, dv);
         }
     }
 }

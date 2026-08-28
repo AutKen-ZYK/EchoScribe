@@ -11,6 +11,17 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
+# Optional CPU features for the operator kernels (M8)
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-mavx2 -mfma" ECHOSCRIBE_HAS_AVX2)
+if(ECHOSCRIBE_HAS_AVX2)
+    add_compile_options(-mavx2 -mfma)
+endif()
+find_package(OpenMP QUIET)
+if(OpenMP_CXX_FOUND)
+    link_libraries(OpenMP::OpenMP_CXX)
+endif()
+
 add_library(echoscribe_core
     src/tensor/tensor.cpp
     src/gguf/gguf.cpp

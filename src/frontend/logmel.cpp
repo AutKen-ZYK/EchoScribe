@@ -69,10 +69,10 @@ tensor::Tensor logMelSpectrogram(const float* pcm, size_t n, size_t targetSample
             mel[m] = acc;
         }
 
-        // log10 with clamp, then normalize against the global max.
+        // log10 with clamp; mel-major layout: out[m * frames + t]
         for (size_t m = 0; m < kNMels; ++m) {
             const float v = std::max(mel[m], 1e-10f);
-            out[m + kNMels * t] = std::log10(v);
+            out[m * frames + t] = std::log10(v);
         }
     }
 

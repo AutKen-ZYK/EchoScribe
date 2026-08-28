@@ -5,17 +5,21 @@
 namespace ops {
 
 void conv1d(const float* x, const float* w, const float* bias, float* y, size_t cIn, size_t cOut,
-            size_t kernel, size_t t, size_t padding) {
+            size_t kernel, size_t t, size_t padding, size_t stride) {
     const long long T = static_cast<long long>(t);
+    const long long S = static_cast<long long>(stride);
+    const size_t tOut = (t + 2 * padding - kernel) / stride + 1;
     for (size_t o = 0; o < cOut; ++o) {
-        float* orow = y + o * t;
-        for (long long ti = 0; ti < T; ++ti) {
+        float* orow = y + o * tOut; // rows are tOut long, not t (matters for stride > 1)
+        for (size_t ti = 0; ti < tOut; ++ti) {
             float acc = bias ? bias[o] : 0.0f;
             for (size_t c = 0; c < cIn; ++c) {
                 const float* xrow = x + c * t;
                 const float* wrow = w + o * (cIn * kernel) + c * kernel;
                 for (size_t k = 0; k < kernel; ++k) {
-                    const long long src = ti + static_cast<long long>(k) - static_cast<long long>(padding);
+                    const long long src = static_cast<long long>(ti) * S +
+                                          static_cast<long long>(k) -
+                                          static_cast<long long>(padding);
                     if (src >= 0 && src < T) {
                         acc += xrow[src] * wrow[k];
                     }

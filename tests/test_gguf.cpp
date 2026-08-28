@@ -127,7 +127,8 @@ TEST_CASE("gguf loader: f32 and f16 to f32", "[gguf]") {
 
     tensor::Tensor a = gguf::loadTensorF32(f, "a.weight");
     REQUIRE(a.size() == 6);
-    REQUIRE(a.shape() == std::vector<size_t>{2, 3});
+    // ggml dims {2,3} -> torch shape {3,2}
+    REQUIRE(a.shape() == std::vector<size_t>{3, 2});
     REQUIRE_THAT(a.data()[0], WithinAbs(1.0f, 1e-6));
     REQUIRE_THAT(a.data()[1], WithinAbs(-2.0f, 1e-6));
     REQUIRE_THAT(a.data()[4], WithinAbs(-5.5f, 1e-6));

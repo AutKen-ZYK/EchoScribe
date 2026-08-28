@@ -15,11 +15,11 @@ TEST_CASE("tensor shape and strides", "[tensor]") {
     Tensor t({2, 3, 4});
     REQUIRE(t.size() == 24);
     REQUIRE(t.ndim() == 3);
-    // dims[0] is fastest-varying, so strides in elements are {1, 2, 6}.
+    // torch row-major: last dim fastest, strides in elements are {12, 4, 1}.
     auto s = t.strides();
-    REQUIRE(s[0] == 1);
-    REQUIRE(s[1] == 2);
-    REQUIRE(s[2] == 6);
+    REQUIRE(s[0] == 12);
+    REQUIRE(s[1] == 4);
+    REQUIRE(s[2] == 1);
 }
 
 TEST_CASE("tensor reshape keeps element count", "[tensor]") {

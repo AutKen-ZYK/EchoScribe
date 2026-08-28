@@ -1,10 +1,16 @@
 // EchoScribe M0 skeleton CLI.
 // Modes: --help, file transcription, real-time microphone (placeholders for now).
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <random>
 #include <string>
+#include <vector>
 
+#include "encoder/encoder.hpp"
+#include "frontend/logmel.hpp"
 #include "gguf/gguf.hpp"
 #include "gguf/loader.hpp"
 
@@ -23,8 +29,55 @@ void printUsage(const char* prog) {
         "  --model PATH        path to whisper GGUF model (default: models/whisper-tiny-F16.gguf)\n"
         "  --lang LANG         language hint, e.g. en (default: auto)\n"
         "  --list-tensors      print model metadata and all tensor names/shapes/dtypes\n"
+        "  --encoder-stats     run the encoder on synthetic mel input, print activation stats\n"
         "\n",
         prog, prog, prog);
+}
+
+// Deterministic synthetic audio used for encoder sanity checks (mirrors the
+// formula in the reference-generation script).
+std::vector<float> syntheticAudio(size_t seconds) {
+    std::vector<float> pcm(seconds * 16000);
+    for (size_t i = 0; i < pcm.size(); ++i) {
+        const double t = static_cast<double>(i) / 16000.0;
+        pcm[i] = static_cast<float>(0.3 * std::sin(2.0 * M_PI * 220.0 * t) +
+                                    0.2 * std::sin(2.0 * M_PI * 445.0 * t) +
+                                    0.15 * std::sin(2.0 * M_PI * 883.0 * t) * std::exp(-t / 2.0) +
+                                    0.1 * std::sin(2.0 * M_PI * (300.0 + 50.0 * t) * t) *
+                                        std::max(0.0, std::sin(M_PI * t / 2.0)));
+    }
+    return pcm;
+}
+
+void encoderStats(const std::string& modelPath) {
+    gguf::File f = gguf::File::open(modelPath);
+    whisper::Encoder enc(f);
+
+    const auto pcm = syntheticAudio(10);
+    tensor::Tensor mel = frontend::logMelSpectrogram(pcm.data(), pcm.size(), 160000);
+    tensor::Tensor out = enc.forward(mel);
+
+    std::printf("encoder: d_model=%zu n_head=%zu n_layers=%zu\n", enc.dModel(), enc.nHead(),
+                enc.nLayers());
+    std::printf("  input mel: %zux%zu -> output: %zux%zu\n", mel.shape()[0], mel.shape()[1],
+                out.shape()[0], out.shape()[1]);
+
+    double mean = 0, sq = 0;
+    float vmin = 1e30f, vmax = -1e30f;
+    for (size_t i = 0; i < out.size(); ++i) {
+        mean += out.data()[i];
+        sq += static_cast<double>(out.data()[i]) * out.data()[i];
+        vmin = std::min(vmin, out.data()[i]);
+        vmax = std::max(vmax, out.data()[i]);
+    }
+    mean /= out.size();
+    const double stdv = std::sqrt(sq / out.size() - mean * mean);
+    std::printf("  output stats: mean=%.6f std=%.6f min=%.4f max=%.4f\n", mean, stdv, vmin, vmax);
+    std::printf("  token 0 (first 8): ");
+    for (size_t j = 0; j < 8; ++j) std::printf("%.4f ", out.data()[j]);
+    std::printf("\n  token %zu (first 8): ", out.shape()[0] - 1);
+    for (size_t j = 0; j < 8; ++j) std::printf("%.4f ", out.data()[(out.shape()[0] - 1) * out.shape()[1] + j]);
+    std::printf("\n");
 }
 
 void listTensors(const std::string& modelPath) {
@@ -79,6 +132,7 @@ int main(int argc, char** argv) {
     std::string inputFile;
     bool mic = false;
     bool listTensorsFlag = false;
+    bool encoderStatsFlag = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -93,6 +147,8 @@ int main(int argc, char** argv) {
             mic = true;
         } else if (arg == "--list-tensors") {
             listTensorsFlag = true;
+        } else if (arg == "--encoder-stats") {
+            encoderStatsFlag = true;
         } else if (!arg.empty() && arg[0] != '-') {
             inputFile = arg;
         } else {
@@ -105,6 +161,16 @@ int main(int argc, char** argv) {
     if (listTensorsFlag) {
         try {
             listTensors(model);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "error: %s\n", e.what());
+            return 1;
+        }
+        return 0;
+    }
+
+    if (encoderStatsFlag) {
+        try {
+            encoderStats(model);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "error: %s\n", e.what());
             return 1;

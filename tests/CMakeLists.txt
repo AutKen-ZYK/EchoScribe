@@ -13,6 +13,7 @@ add_executable(tests
     test_fft.cpp
     test_frontend.cpp
     test_ops.cpp
+    test_encoder.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain echoscribe_core)
 target_compile_definitions(tests PRIVATE
@@ -22,4 +23,4 @@ target_compile_definitions(tests PRIVATE
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(CTest)
 include(Catch)
-catch_discover_tests(tests)
+catch_discover_tests(tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

@@ -36,7 +36,7 @@ Tensor Tensor::fromF16(const void* src, std::vector<size_t> shape) {
 
 std::vector<size_t> Tensor::strides() const {
     std::vector<size_t> s(shape_.size(), 1);
-    for (size_t i = 1; i < shape_.size(); ++i) s[i] = s[i - 1] * shape_[i - 1];
+    for (size_t i = shape_.size(); i-- > 1;) s[i - 1] = s[i] * shape_[i];
     return s;
 }
 

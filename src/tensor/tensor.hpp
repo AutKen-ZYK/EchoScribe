@@ -6,8 +6,9 @@
 
 namespace tensor {
 
-// Contiguous row-major f32 tensor. dims[0] is the fastest-varying dimension
-// (ggml convention).
+// Contiguous row-major f32 tensor, torch convention: the LAST dimension is
+// the fastest-varying (unit stride). shape() is in torch order, so a ggml
+// tensor with dims {d0, d1, d2} is stored here with shape {d2, d1, d0}.
 class Tensor {
 public:
     Tensor() = default;

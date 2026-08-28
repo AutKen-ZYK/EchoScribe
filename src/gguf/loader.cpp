@@ -8,7 +8,8 @@ tensor::Tensor loadTensorF32(const File& f, const std::string& name) {
     const TensorInfo* info = f.findTensor(name);
     if (!info) throw std::runtime_error("gguf: tensor not found: " + name);
 
-    std::vector<size_t> shape(info->dims.begin(), info->dims.end());
+    // ggml dims {d0, d1, ...} (d0 fastest) -> torch shape {..., d1, d0}.
+    std::vector<size_t> shape(info->dims.rbegin(), info->dims.rend());
     const void* src = f.tensorData(*info);
 
     if (info->type == ElementType::F32) {

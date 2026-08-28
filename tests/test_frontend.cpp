@@ -110,7 +110,7 @@ TEST_CASE("logmel: 440 Hz sine concentrates in right mel bins", "[frontend]") {
     std::vector<double> melEnergy(80, 0.0);
     for (size_t t = 0; t < 40; ++t) {
         for (size_t m = 0; m < 80; ++m) {
-            melEnergy[m] += spec.data()[m + 80 * t];
+            melEnergy[m] += spec.data()[m * 3000 + t];
         }
     }
     size_t argmax = 0;
@@ -127,7 +127,7 @@ TEST_CASE("logmel: 440 Hz sine concentrates in right mel bins", "[frontend]") {
     // = global_max_normalized - 2.
     float gmax = 0;
     for (size_t i = 0; i < spec.size(); ++i) gmax = std::max(gmax, spec.data()[i]);
-    const float tail = spec.data()[40 + 80 * 2500];
+    const float tail = spec.data()[40 * 3000 + 2500]; // mel bin 40, frame 2500
     REQUIRE(tail == Catch::Approx(gmax - 2.0f).margin(1e-4));
 }
 

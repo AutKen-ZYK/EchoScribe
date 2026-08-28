@@ -22,6 +22,7 @@ add_library(echoscribe_core
     src/ops/elementwise.cpp
     src/ops/conv1d.cpp
     src/ops/attention.cpp
+    src/encoder/encoder.cpp
 )
 target_include_directories(echoscribe_core PUBLIC src)
 

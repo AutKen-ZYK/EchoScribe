@@ -8,7 +8,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M1: GGUF parsing + mmap weight loading
 - [x] M2: log-mel frontend (FFT from scratch)
 - [x] M3: operator library with unit tests
-- [ ] M4: encoder forward pass
+- [x] M4: encoder forward pass
 - [ ] M5: decoder + tokenizer (greedy)
 - [ ] M6: file transcription end-to-end
 - [ ] M7: real-time microphone mode (VAD + streaming)
@@ -66,6 +66,28 @@ Notes:
 - Quantized variants (q4/q5/q8) exist but EchoScribe currently loads f32/f16 only.
 
 Model files are git-ignored; never commit weights.
+
+## Reference data
+
+`tests/data/*.f32` holds reference log-mel features and encoder outputs from the
+official OpenAI whisper tiny model (f32), generated on synthetic 30 s audio:
+
+```python
+import numpy as np, torch, whisper
+sr = 16000
+t = np.arange(30 * sr) / sr
+audio = (0.3*np.sin(2*np.pi*220*t) + 0.2*np.sin(2*np.pi*445*t)
+         + 0.15*np.sin(2*np.pi*883*t)*np.exp(-t/2)
+         + 0.1*np.sin(2*np.pi*(300+50*t)*t)*np.clip(np.sin(np.pi*t/2.0), 0, 1)).astype(np.float32)
+model = whisper.load_model("tiny").float().eval()
+mel = whisper.log_mel_spectrogram(audio)          # [80, 3000]
+enc = model.encoder(mel.unsqueeze(0))             # [1, 1500, 384]
+mel.numpy().tofile("tests/data/mel_ref.f32")
+enc.squeeze(0).numpy().tofile("tests/data/enc_ref.f32")
+```
+
+Current agreement: log-mel max diff 6.9e-5; encoder mean abs diff 2.6e-3
+(f32 accumulation-order noise through 4 transformer layers).
 
 ## Usage
 

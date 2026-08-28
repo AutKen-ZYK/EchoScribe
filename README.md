@@ -5,7 +5,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 ## Status
 
 - [x] M0: build skeleton + CLI
-- [ ] M1: GGUF parsing + mmap weight loading
+- [x] M1: GGUF parsing + mmap weight loading
 - [ ] M2: log-mel frontend (FFT from scratch)
 - [ ] M3: operator library with unit tests
 - [ ] M4: encoder forward pass
@@ -52,13 +52,18 @@ cmake --build build
 
 ## Download a model
 
-Place the Whisper tiny model (GGUF) under `models/`:
+Place a Whisper **GGUF** model under `models/`:
 
 ```bash
-# from https://huggingface.co/ggerganov/whisper.cpp
-curl -L -o models/whisper-tiny.gguf \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
+# whisper tiny, F16 (~78 MB), GGUF v3
+curl -L -o models/whisper-tiny-F16.gguf \
+  https://huggingface.co/handy-computer/whisper-tiny-gguf/resolve/main/whisper-tiny-F16.gguf
 ```
+
+Notes:
+- Verify with `./build/echoscribe --list-tensors` (169 tensors, arch=whisper).
+- The classic `ggml-tiny.bin` from ggerganov/whisper.cpp is the **old GGML format** (magic `ggml`), *not* GGUF — do not use it.
+- Quantized variants (q4/q5/q8) exist but EchoScribe currently loads f32/f16 only.
 
 Model files are git-ignored; never commit weights.
 

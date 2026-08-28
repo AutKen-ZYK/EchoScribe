@@ -11,6 +11,19 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
+add_library(echoscribe_core
+    src/tensor/tensor.cpp
+    src/gguf/gguf.cpp
+    src/gguf/loader.cpp
+)
+target_include_directories(echoscribe_core PUBLIC src)
+
 add_executable(echoscribe
     src/cli/main.cpp
 )
+target_link_libraries(echoscribe PRIVATE echoscribe_core)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -14,6 +14,8 @@ add_executable(tests
     test_frontend.cpp
     test_ops.cpp
     test_encoder.cpp
+    test_tokenizer.cpp
+    test_decoder.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain echoscribe_core)
 target_compile_definitions(tests PRIVATE

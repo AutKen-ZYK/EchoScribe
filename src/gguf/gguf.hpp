@@ -86,6 +86,7 @@ public:
 
     bool hasKV(const std::string& key) const;
     const Value& kv(const std::string& key) const; // throws if missing
+    const std::unordered_map<std::string, Value>& kvMap() const;
 
     const std::vector<TensorInfo>& tensors() const { return tensors_; }
     const TensorInfo* findTensor(const std::string& name) const;

@@ -221,6 +221,10 @@ size_t File::kvCount() const {
     return impl_->kv.size();
 }
 
+const std::unordered_map<std::string, Value>& File::kvMap() const {
+    return impl_->kv;
+}
+
 const Value& File::kv(const std::string& key) const {
     auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) throw std::runtime_error("gguf: missing metadata key " + key);

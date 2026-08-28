@@ -9,7 +9,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M2: log-mel frontend (FFT from scratch)
 - [x] M3: operator library with unit tests
 - [x] M4: encoder forward pass
-- [ ] M5: decoder + tokenizer (greedy)
+- [x] M5: decoder + tokenizer (greedy)
 - [ ] M6: file transcription end-to-end
 - [ ] M7: real-time microphone mode (VAD + streaming)
 - [ ] M8 (optional): SIMD / OpenMP optimization

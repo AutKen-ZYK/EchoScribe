@@ -17,6 +17,7 @@ add_executable(tests
     test_tokenizer.cpp
     test_decoder.cpp
     test_e2e.cpp
+    test_streaming.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain echoscribe_core)
 target_compile_definitions(tests PRIVATE

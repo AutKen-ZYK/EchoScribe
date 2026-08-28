@@ -61,8 +61,9 @@ ScalarValue parseScalar(Reader& r, ValueType type) {
         case ValueType::UINT64: return r.scalar<uint64_t>();
         case ValueType::INT64: return r.scalar<int64_t>();
         case ValueType::FLOAT64: return r.scalar<double>();
+        case ValueType::ARRAY: break;
     }
-    throw std::runtime_error("gguf: unknown metadata value type");
+    throw std::runtime_error("gguf: nested arrays not supported");
 }
 
 Value parseValue(Reader& r, ValueType type) {

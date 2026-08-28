@@ -28,6 +28,11 @@ public:
     std::vector<Segment> transcribeFile(const std::string& wavPath,
                                         const std::string& lang = "auto");
 
+    // Real-time path: transcribe one short segment with minimal padding
+    // (no 30 s window), timestamps relative to segment start.
+    std::vector<Segment> transcribeSegment(const float* pcm, size_t n,
+                                           const std::string& lang = "auto");
+
     const whisper::Tokenizer& tokenizer() const { return tok_; }
 
 private:

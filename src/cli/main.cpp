@@ -9,12 +9,19 @@
 #include <string>
 #include <vector>
 
+#include "audio/capture.hpp"
 #include "audio/wav.hpp"
-#include "encoder/encoder.hpp"
 #include "cli/transcribe.hpp"
+#include "encoder/encoder.hpp"
 #include "frontend/logmel.hpp"
 #include "gguf/gguf.hpp"
 #include "gguf/loader.hpp"
+#include "streaming/stream.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <thread>
 
 namespace {
 
@@ -80,6 +87,71 @@ void encoderStats(const std::string& modelPath) {
     std::printf("\n  token %zu (first 8): ", out.shape()[0] - 1);
     for (size_t j = 0; j < 8; ++j) std::printf("%.4f ", out.data()[(out.shape()[0] - 1) * out.shape()[1] + j]);
     std::printf("\n");
+}
+
+std::atomic<bool> g_running{true};
+
+void onSigint(int) {
+    g_running.store(false);
+}
+
+int runMic(const std::string& model, const std::string& lang) {
+    std::signal(SIGINT, onSigint);
+
+    transcribe::Transcriber t(model);
+    std::printf("model loaded; listening (Ctrl+C to stop)...\n");
+
+    streaming::RingBuffer ring(16000 * 90); // 90 s backlog
+    audio::MicCapture mic;
+    std::string err;
+    if (!mic.start(16000, ring, &err)) {
+        std::fprintf(stderr, "error: %s\n", err.c_str());
+        return 1;
+    }
+
+    streaming::Segmenter segmenter(16000);
+    std::vector<float> chunk(1600);
+
+    while (g_running.load()) {
+        const size_t got = ring.read(chunk.data(), chunk.size());
+        if (got == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            continue;
+        }
+
+        std::vector<streaming::TimedSegment> segs;
+        segmenter.feed(chunk.data(), got, segs);
+        for (streaming::TimedSegment& seg : segs) {
+            const auto parts = t.transcribeSegment(seg.samples.data(), seg.samples.size(), lang);
+            for (const transcribe::Segment& s : parts) {
+                if (s.text.empty()) continue;
+                const double t0 = seg.t0 + s.t0;
+                const double t1 = seg.t0 + s.t1;
+                std::printf("[%02d:%06.3f --> %02d:%06.3f]  %s\n", static_cast<int>(t0) / 60,
+                            std::fmod(t0, 60.0), static_cast<int>(t1) / 60, std::fmod(t1, 60.0),
+                            s.text.c_str());
+                std::fflush(stdout);
+            }
+        }
+    }
+
+    // drain what's left
+    std::vector<streaming::TimedSegment> segs;
+    segmenter.flush(segs);
+    for (streaming::TimedSegment& seg : segs) {
+        const auto parts = t.transcribeSegment(seg.samples.data(), seg.samples.size(), lang);
+        for (const transcribe::Segment& s : parts) {
+            if (s.text.empty()) continue;
+            const double t0 = seg.t0 + s.t0;
+            const double t1 = seg.t0 + s.t1;
+            std::printf("[%02d:%06.3f --> %02d:%06.3f]  %s\n", static_cast<int>(t0) / 60,
+                        std::fmod(t0, 60.0), static_cast<int>(t1) / 60, std::fmod(t1, 60.0),
+                        s.text.c_str());
+        }
+    }
+
+    mic.stop();
+    return 0;
 }
 
 void listTensors(const std::string& modelPath) {
@@ -180,15 +252,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if (!inputFile.empty() && mic) {
-        std::fprintf(stderr, "error: cannot combine file input with --mic\n");
-        return 1;
-    }
-
-    if (mic) {
-        std::printf("mic mode: not implemented yet (M7)\n");
-        return 0;
-    }
     if (!inputFile.empty()) {
         try {
             transcribe::Transcriber t(model);
@@ -205,6 +268,10 @@ int main(int argc, char** argv) {
             return 1;
         }
         return 0;
+    }
+
+    if (mic) {
+        return runMic(model, lang);
     }
 
     printUsage(argv[0]);

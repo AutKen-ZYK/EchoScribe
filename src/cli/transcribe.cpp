@@ -11,6 +11,7 @@ namespace {
 
 constexpr size_t kSampleRate = 16000;
 constexpr size_t kWindowSamples = 480000; // 30 s
+constexpr size_t kHop = 160;              // logmel hop at 16 kHz
 
 std::vector<Segment> assembleSegments(const std::vector<size_t>& ids, const whisper::Tokenizer& tok,
                                       double timeOffset, const std::vector<float>& logprobs) {
@@ -131,6 +132,32 @@ std::vector<Segment> Transcriber::transcribeFile(const std::string& wavPath,
                                                  const std::string& lang) {
     audio::WavData wav = audio::readWav(wavPath, kSampleRate);
     return transcribe(wav.samples.data(), wav.samples.size(), lang);
+}
+
+std::vector<Segment> Transcriber::transcribeSegment(const float* pcm, size_t n,
+                                                    const std::string& lang) {
+    if (n == 0) return {};
+
+    // minimal padding: enough frames to cover the segment, even count
+    size_t frames = (n + kHop - 1) / kHop;
+    if (frames % 2 != 0) ++frames;
+    const size_t target = frames * kHop;
+
+    tensor::Tensor mel = frontend::logMelSpectrogram(pcm, n, target);
+    tensor::Tensor audio = enc_.forward(mel);
+
+    size_t langToken;
+    if (lang == "auto") {
+        langToken = detectLanguage(audio);
+    } else {
+        langToken = tok_.languageToken(lang);
+    }
+
+    std::vector<size_t> prompt = {tok_.sot(), langToken, tok_.transcribe()};
+    std::vector<float> logprobs;
+    std::vector<size_t> generated =
+        dec_.generate(audio, tok_, prompt, /*noTimestamps=*/false, 448, &logprobs);
+    return assembleSegments(generated, tok_, 0.0, logprobs);
 }
 
 } // namespace transcribe

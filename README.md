@@ -11,7 +11,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M4: encoder forward pass
 - [x] M5: decoder + tokenizer (greedy)
 - [x] M6: file transcription end-to-end
-- [ ] M7: real-time microphone mode (VAD + streaming)
+- [x] M7: real-time microphone mode (VAD + streaming)
 - [ ] M8 (optional): SIMD / OpenMP optimization
 
 ## Architecture
@@ -96,7 +96,13 @@ Current agreement: log-mel max diff 6.9e-5; encoder mean abs diff 2.6e-3
 ./build/echoscribe tests/data/jfk.wav            # transcribe a wav file
 ./build/echoscribe --model models/whisper-tiny-F16.gguf speech.wav
 ./build/echoscribe --lang en speech.wav          # skip language detection
+./build/echoscribe --mic                         # real-time subtitles from mic
 ```
+
+Real-time mode: miniaudio captures at 16 kHz into a ring buffer; an energy
+VAD with hysteresis (100 ms RMS blocks, 400 ms pre-roll, 800 ms hangover)
+slices the stream into speech segments; each completed segment is
+transcribed with minimal padding and printed immediately.
 
 Example output:
 

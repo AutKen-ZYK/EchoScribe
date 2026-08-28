@@ -26,9 +26,14 @@ add_library(echoscribe_core
     src/tokenizer/tokenizer.cpp
     src/decoder/decoder.cpp
     src/audio/wav.cpp
+    src/audio/capture.cpp
     src/cli/transcribe.cpp
+    src/streaming/stream.cpp
 )
 target_include_directories(echoscribe_core PUBLIC src)
+target_include_directories(echoscribe_core PUBLIC third_party)
+# miniaudio is third-party; silence -Wall/-Wextra for its implementation TU
+set_source_files_properties(src/audio/capture.cpp PROPERTIES COMPILE_OPTIONS "-w")
 
 add_executable(echoscribe
     src/cli/main.cpp

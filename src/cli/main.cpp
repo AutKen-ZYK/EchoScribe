@@ -9,7 +9,9 @@
 #include <string>
 #include <vector>
 
+#include "audio/wav.hpp"
 #include "encoder/encoder.hpp"
+#include "cli/transcribe.hpp"
 #include "frontend/logmel.hpp"
 #include "gguf/gguf.hpp"
 #include "gguf/loader.hpp"
@@ -188,7 +190,20 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (!inputFile.empty()) {
-        std::printf("file mode: '%s' not implemented yet (M6)\n", inputFile.c_str());
+        try {
+            transcribe::Transcriber t(model);
+            const auto segs = t.transcribeFile(inputFile, lang);
+            for (const transcribe::Segment& s : segs) {
+                if (s.text.empty()) continue;
+                std::printf("[%02d:%06.3f --> %02d:%06.3f]  %s\n",
+                            static_cast<int>(s.t0) / 60, std::fmod(s.t0, 60.0),
+                            static_cast<int>(s.t1) / 60, std::fmod(s.t1, 60.0),
+                            s.text.c_str());
+            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "error: %s\n", e.what());
+            return 1;
+        }
         return 0;
     }
 

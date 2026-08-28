@@ -25,6 +25,8 @@ add_library(echoscribe_core
     src/encoder/encoder.cpp
     src/tokenizer/tokenizer.cpp
     src/decoder/decoder.cpp
+    src/audio/wav.cpp
+    src/cli/transcribe.cpp
 )
 target_include_directories(echoscribe_core PUBLIC src)
 

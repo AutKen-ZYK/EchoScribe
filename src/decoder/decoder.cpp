@@ -102,7 +102,7 @@ void Decoder::forwardSequence(const tensor::Tensor& audio, const tensor::Tensor&
 
 std::vector<size_t> Decoder::generate(const tensor::Tensor& audio, const Tokenizer& tok,
                                       const std::vector<size_t>& prompt, bool noTimestamps,
-                                      size_t maxTokens) const {
+                                      size_t maxTokens, std::vector<float>* tokenLogprobs) const {
     const size_t d = dModel_;
     const size_t tAudio = audio.shape()[0];
 
@@ -230,6 +230,21 @@ std::vector<size_t> Decoder::generate(const tensor::Tensor& audio, const Tokeniz
             }
         }
         if (next == tok.eot()) break;
+
+        if (tokenLogprobs) {
+            // log-softmax of the suppressed logits over the full vocab
+            double maxVal = -1e30;
+            for (size_t id = 0; id < nVocab(); ++id) {
+                maxVal = std::max(maxVal, static_cast<double>(masked[id]));
+            }
+            double sum = 0.0;
+            for (size_t id = 0; id < nVocab(); ++id) {
+                sum += std::exp(static_cast<double>(masked[id]) - maxVal);
+            }
+            tokenLogprobs->push_back(static_cast<float>(static_cast<double>(masked[next]) -
+                                                        (maxVal + std::log(sum))));
+        }
+
         seq.push_back(next);
         generated.push_back(next);
         computeLogits(seq, seq.size() - 1, 1);

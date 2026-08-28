@@ -10,7 +10,7 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 - [x] M3: operator library with unit tests
 - [x] M4: encoder forward pass
 - [x] M5: decoder + tokenizer (greedy)
-- [ ] M6: file transcription end-to-end
+- [x] M6: file transcription end-to-end
 - [ ] M7: real-time microphone mode (VAD + streaming)
 - [ ] M8 (optional): SIMD / OpenMP optimization
 
@@ -93,6 +93,24 @@ Current agreement: log-mel max diff 6.9e-5; encoder mean abs diff 2.6e-3
 
 ```bash
 ./build/echoscribe --help
-# M6+: ./build/echoscribe sample.wav
-# M7+: ./build/echoscribe --mic
+./build/echoscribe tests/data/jfk.wav            # transcribe a wav file
+./build/echoscribe --model models/whisper-tiny-F16.gguf speech.wav
+./build/echoscribe --lang en speech.wav          # skip language detection
 ```
+
+Example output:
+
+```
+[00:00.000 --> 00:10.500]  And so my fellow Americans ask not what your country can do for you, ask what you can do for your country.
+```
+
+Debug tools:
+
+```bash
+./build/echoscribe --list-tensors    # dump GGUF metadata + tensor list
+./build/echoscribe --encoder-stats   # encoder activation sanity check
+```
+
+Files longer than 30 s are processed in 30 s windows; silent windows are
+skipped by an RMS energy gate, and low-confidence segments (mean token
+log-probability < -1.0, as in whisper) are dropped to avoid hallucinations.

@@ -19,9 +19,11 @@ public:
     // Greedy decoding. prompt is the initial token sequence (sot, language,
     // transcribe[, notimestamps]); generated tokens (excluding the prompt) are
     // returned. Stops at eot or after maxTokens generated tokens.
+    // If tokenLogprobs is non-null it receives the per-token log-probability
+    // (after suppression rules) of each generated token.
     std::vector<size_t> generate(const tensor::Tensor& audio, const Tokenizer& tok,
                                  const std::vector<size_t>& prompt, bool noTimestamps,
-                                 size_t maxTokens) const;
+                                 size_t maxTokens, std::vector<float>* tokenLogprobs = nullptr) const;
 
     // Logits for a fixed token sequence (no caching); useful for tests.
     std::vector<float> forwardLogits(const tensor::Tensor& audio,

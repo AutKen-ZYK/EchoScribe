@@ -1,0 +1,11 @@
+build/
+.cache/
+compile_commands.json
+
+# model weights are never committed
+models/*.gguf
+models/*.bin
+models/*.pt
+models/*.safetensors
+
+# miniaudio is vendored as a single header; ignore nothing else for now

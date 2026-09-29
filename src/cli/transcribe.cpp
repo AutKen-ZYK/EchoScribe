@@ -72,7 +72,12 @@ Transcriber::Transcriber(const std::string& modelPath)
     : gguf_(gguf::File::open(modelPath)),
       tok_(gguf_),
       enc_(gguf_),
-      dec_(gguf_) {}
+      dec_(gguf_) {
+    // The mel bin count is a property of the model (80 for tiny..large-v2,
+    // 128 for large-v3); take it from the encoder to keep the frontend and the
+    // first conv in sync.
+    nMels_ = enc_.nMels();
+}
 
 size_t Transcriber::detectLanguage(const tensor::Tensor& audio) {
     // One decoder pass with <|startoftranscript|> only; pick the most probable
@@ -89,7 +94,7 @@ size_t Transcriber::detectLanguage(const tensor::Tensor& audio) {
 
 std::vector<Segment> Transcriber::transcribeWindow(const float* pcm, size_t n, size_t langToken,
                                                    double timeOffset) {
-    tensor::Tensor mel = frontend::logMelSpectrogram(pcm, n, kWindowSamples);
+    tensor::Tensor mel = frontend::logMelSpectrogram(pcm, n, kWindowSamples, nMels_);
     tensor::Tensor audio = enc_.forward(mel);
 
     std::vector<size_t> prompt = {tok_.sot(), langToken, tok_.transcribe()};
@@ -111,7 +116,7 @@ std::vector<Segment> Transcriber::transcribe(const float* pcm, size_t n, const s
         const double rms = std::sqrt(energy / static_cast<double>(len));
         if (rms < 1e-3) continue;
 
-        tensor::Tensor mel = frontend::logMelSpectrogram(pcm + offset, len, kWindowSamples);
+        tensor::Tensor mel = frontend::logMelSpectrogram(pcm + offset, len, kWindowSamples, nMels_);
         tensor::Tensor audio = enc_.forward(mel);
 
         size_t langToken;
@@ -143,7 +148,7 @@ std::vector<Segment> Transcriber::transcribeSegment(const float* pcm, size_t n,
     if (frames % 2 != 0) ++frames;
     const size_t target = frames * kHop;
 
-    tensor::Tensor mel = frontend::logMelSpectrogram(pcm, n, target);
+    tensor::Tensor mel = frontend::logMelSpectrogram(pcm, n, target, nMels_);
     tensor::Tensor audio = enc_.forward(mel);
 
     size_t langToken;

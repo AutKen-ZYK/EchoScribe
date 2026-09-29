@@ -83,8 +83,7 @@ void Segmenter::processBlock(std::vector<TimedSegment>& out) {
                 seg.samples = std::move(segment_);
                 out.push_back(std::move(seg));
             }
-            segment_.clear();
-            segment_ = std::vector<float>();
+            segment_ = std::vector<float>(); // release the buffer
             inSpeech_ = false;
             silenceRun_ = 0;
             segmentBlocks_ = 0;

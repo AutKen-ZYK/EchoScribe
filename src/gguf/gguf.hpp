@@ -89,6 +89,7 @@ public:
     const std::unordered_map<std::string, Value>& kvMap() const;
 
     const std::vector<TensorInfo>& tensors() const { return tensors_; }
+    // Lookup by name via an index built at parse time; nullptr when absent.
     const TensorInfo* findTensor(const std::string& name) const;
 
     const void* tensorData(const TensorInfo& t) const;
@@ -99,6 +100,7 @@ private:
     uint32_t version_ = 0;
     uint64_t alignment_ = 32;
     std::vector<TensorInfo> tensors_;
+    std::unordered_map<std::string, size_t> tensorIndex_;
 };
 
 } // namespace gguf

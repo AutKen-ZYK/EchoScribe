@@ -17,8 +17,18 @@ Encoder::Encoder(const gguf::File& f) {
     finalB_ = gguf::loadTensorF32(f, "enc.final_norm.bias");
 
     // Tensor shapes are torch order: conv weight [dModel, nMels, kernel]
+    if (conv0w_.shape().size() != 3 || conv0b_.shape().size() != 1) {
+        throw std::runtime_error("encoder: unexpected conv.0 weight/bias rank");
+    }
     dModel_ = conv0w_.shape()[0];
+    nMels_ = conv0w_.shape()[1];
     nHead_ = dModel_ / headDim_;
+    if (conv0b_.size() != dModel_ || dModel_ == 0 || nMels_ == 0) {
+        throw std::runtime_error("encoder: inconsistent conv.0 shapes");
+    }
+    if (nHead_ == 0 || dModel_ % headDim_ != 0) {
+        throw std::runtime_error("encoder: dModel is not a multiple of 64");
+    }
 
     // Count encoder blocks by probing names.
     for (size_t i = 0;; ++i) {
@@ -46,8 +56,20 @@ Encoder::Encoder(const gguf::File& f) {
 }
 
 tensor::Tensor Encoder::forward(const tensor::Tensor& mel) const {
+    if (mel.ndim() != 2 || mel.shape()[0] != nMels_) {
+        throw std::runtime_error("encoder: mel must be [nMels=" + std::to_string(nMels_) +
+                                 ", frames], got a tensor with different leading dims");
+    }
     const size_t cIn = mel.shape()[0];
     const size_t tIn = mel.shape()[1];
+    if (tIn < 2) {
+        throw std::runtime_error("encoder: mel needs at least 2 frames");
+    }
+    if (tIn / 2 > posEmb_.shape()[0]) {
+        throw std::runtime_error("encoder: " + std::to_string(tIn / 2) +
+                                 " audio positions exceed the model's positional embedding (" +
+                                 std::to_string(posEmb_.shape()[0]) + ")");
+    }
 
     // conv0: [dModel, tIn], stride 1, padding 1
     tensor::Tensor h({dModel_, tIn});

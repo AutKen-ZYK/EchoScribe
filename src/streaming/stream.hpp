@@ -60,7 +60,7 @@ private:
     double sampleRate_;
     Config cfg_;
     std::vector<float> preRoll_;
-    std::vector<float> pending_; // samples accumulated since stream start (up to block size)
+    std::vector<float> pending_; // samples of the block currently being filled
     size_t pendingCount_ = 0;
 
     bool inSpeech_ = false;

@@ -4,8 +4,7 @@
 #include "gguf/gguf.hpp"
 #include "gguf/loader.hpp"
 
-#include <cstdio>
-#include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -13,6 +12,15 @@
 using Catch::Matchers::WithinAbs;
 
 namespace {
+
+// Scratch path inside the platform temp directory: hardcoding a fixed path
+// (e.g. /tmp/opencode) breaks the suite on any machine that lacks that dir.
+std::string tempPath(const char* name) {
+    std::error_code ec;
+    std::filesystem::path dir = std::filesystem::temp_directory_path(ec);
+    if (ec || dir.empty()) dir = std::filesystem::current_path(ec);
+    return (dir / name).string();
+}
 
 // Minimal GGUF v3 writer used to build synthetic test files in memory.
 struct Buf {
@@ -91,7 +99,7 @@ std::string writeTestGguf(const std::string& path) {
 } // namespace
 
 TEST_CASE("gguf parser: header, kv, tensors", "[gguf]") {
-    const std::string path = "/tmp/opencode/echoscribe_test.gguf";
+    const std::string path = tempPath("echoscribe_test.gguf");
     writeTestGguf(path);
 
     gguf::File f = gguf::File::open(path);
@@ -121,7 +129,7 @@ TEST_CASE("gguf parser: header, kv, tensors", "[gguf]") {
 }
 
 TEST_CASE("gguf loader: f32 and f16 to f32", "[gguf]") {
-    const std::string path = "/tmp/opencode/echoscribe_test.gguf";
+    const std::string path = tempPath("echoscribe_test.gguf");
     writeTestGguf(path);
     gguf::File f = gguf::File::open(path);
 
@@ -144,11 +152,21 @@ TEST_CASE("gguf loader: f32 and f16 to f32", "[gguf]") {
 }
 
 TEST_CASE("gguf parser: rejects non-gguf file", "[gguf]") {
-    const std::string path = "/tmp/opencode/echoscribe_bad.gguf";
-    std::ofstream f(path, std::ios::binary);
-    f << "this is not a gguf file, just some text padding padding";
-    f.close();
+    const std::string path = tempPath("echoscribe_bad.gguf");
+    {
+        std::ofstream f(path, std::ios::binary);
+        REQUIRE(f.good()); // fail loudly rather than passing for the wrong reason
+        f << "this is not a gguf file, just some text padding padding";
+        f.close();
+    }
+    REQUIRE(std::filesystem::exists(path));
+    REQUIRE(std::filesystem::file_size(path) >= 8); // must pass the size check
     REQUIRE_THROWS(gguf::File::open(path));
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("gguf parser: rejects a missing file", "[gguf]") {
+    REQUIRE_THROWS(gguf::File::open(tempPath("echoscribe_does_not_exist.gguf")));
 }
 
 // Real-model smoke test: skipped automatically when no model is present.

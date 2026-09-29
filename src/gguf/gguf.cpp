@@ -167,6 +167,7 @@ File File::open(const std::string& path) {
 
     f.tensors_.reserve(static_cast<size_t>(tensorCount));
     impl.kv.reserve(static_cast<size_t>(kvCount));
+    f.tensorIndex_.reserve(static_cast<size_t>(tensorCount));
 
     for (uint64_t i = 0; i < kvCount; ++i) {
         std::string key = r.str();
@@ -192,6 +193,9 @@ File File::open(const std::string& path) {
             for (uint64_t d : t.dims) numel *= d;
             t.nBytes = numel * es;
         }
+        // Index by name on the way in; duplicates keep the first entry, which
+        // matches the old linear scan that returned the earliest match.
+        f.tensorIndex_.emplace(t.name, f.tensors_.size());
         f.tensors_.push_back(std::move(t));
     }
 
@@ -233,10 +237,9 @@ const Value& File::kv(const std::string& key) const {
 }
 
 const TensorInfo* File::findTensor(const std::string& name) const {
-    for (const TensorInfo& t : tensors_) {
-        if (t.name == name) return &t;
-    }
-    return nullptr;
+    auto it = tensorIndex_.find(name);
+    if (it == tensorIndex_.end()) return nullptr;
+    return &tensors_[it->second];
 }
 
 const void* File::tensorData(const TensorInfo& t) const {

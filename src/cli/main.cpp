@@ -1,11 +1,9 @@
-// EchoScribe M0 skeleton CLI.
-// Modes: --help, file transcription, real-time microphone (placeholders for now).
+// EchoScribe CLI: file transcription, real-time microphone subtitles, model
+// inspection and benchmarking.
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <cstring>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -24,7 +22,6 @@
 #include <chrono>
 #include <csignal>
 #include <thread>
-#include <thread>
 
 namespace {
 
@@ -42,6 +39,7 @@ void printUsage(const char* prog) {
         "  --lang LANG         language hint, e.g. en (default: auto)\n"
         "  --list-tensors      print model metadata and all tensor names/shapes/dtypes\n"
         "  --encoder-stats     run the encoder on synthetic mel input, print activation stats\n"
+        "  --bench FILE.wav    stage-by-stage timing (frontend/encoder/decoder) and RTF\n"
         "\n",
         prog, prog, prog);
 }
@@ -66,7 +64,7 @@ void encoderStats(const std::string& modelPath) {
     whisper::Encoder enc(f);
 
     const auto pcm = syntheticAudio(10);
-    tensor::Tensor mel = frontend::logMelSpectrogram(pcm.data(), pcm.size(), 160000);
+    tensor::Tensor mel = frontend::logMelSpectrogram(pcm.data(), pcm.size(), 160000, enc.nMels());
     tensor::Tensor out = enc.forward(mel);
 
     std::printf("encoder: d_model=%zu n_head=%zu n_layers=%zu\n", enc.dModel(), enc.nHead(),
@@ -112,7 +110,7 @@ int bench(const std::string& modelPath, const std::string& wavPath) {
     whisper::Decoder dec(f);
 
     auto t0 = clk::now();
-    tensor::Tensor mel = frontend::logMelSpectrogram(wav.samples.data(), n, 480000);
+    tensor::Tensor mel = frontend::logMelSpectrogram(wav.samples.data(), n, 480000, enc.nMels());
     auto t1 = clk::now();
     tensor::Tensor audio = enc.forward(mel);
     auto t2 = clk::now();

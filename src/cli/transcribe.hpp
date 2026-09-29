@@ -44,6 +44,7 @@ private:
     whisper::Tokenizer tok_;
     whisper::Encoder enc_;
     whisper::Decoder dec_;
+    size_t nMels_ = 80; // taken from the encoder conv weight (128 for large-v3)
 };
 
 } // namespace transcribe

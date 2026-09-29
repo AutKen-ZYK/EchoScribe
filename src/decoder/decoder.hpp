@@ -18,9 +18,10 @@ public:
 
     // Greedy decoding. prompt is the initial token sequence (sot, language,
     // transcribe[, notimestamps]); generated tokens (excluding the prompt) are
-    // returned. Stops at eot or after maxTokens generated tokens.
-    // If tokenLogprobs is non-null it receives the per-token log-probability
-    // (after suppression rules) of each generated token.
+    // returned. Stops at eot, after maxTokens generated tokens, or when the
+    // context window (nCtx) is full - it never generates past the positional
+    // embedding. If tokenLogprobs is non-null it receives the per-token
+    // log-probability (after suppression rules) of each generated token.
     std::vector<size_t> generate(const tensor::Tensor& audio, const Tokenizer& tok,
                                  const std::vector<size_t>& prompt, bool noTimestamps,
                                  size_t maxTokens, std::vector<float>* tokenLogprobs = nullptr) const;
@@ -33,6 +34,7 @@ public:
     size_t nHead() const { return nHead_; }
     size_t nLayers() const { return blocks_.size(); }
     size_t nVocab() const { return nVocab_; }
+    size_t nCtx() const { return nCtx_; }
 
 private:
     struct Block {

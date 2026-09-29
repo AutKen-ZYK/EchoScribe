@@ -137,6 +137,66 @@ TEST_CASE("logmel: 10 s input gives 1000 frames", "[frontend]") {
     REQUIRE(spec.shape() == std::vector<size_t>{80, 1000});
 }
 
+TEST_CASE("logmel: mel bin count follows the model", "[frontend]") {
+    // 80 bins for tiny..large-v2, 128 for large-v3. The same audio must land in
+    // the same physical band, only the bin resolution changes.
+    std::vector<float> pcm(16000, 0.0f);
+    for (size_t i = 0; i < pcm.size(); ++i) {
+        pcm[i] = static_cast<float>(0.5 * std::sin(2.0 * M_PI * 440.0 * static_cast<double>(i) /
+                                                   16000.0));
+    }
+
+    for (const size_t nBins : {size_t(80), size_t(128)}) {
+        const auto spec = frontend::logMelSpectrogram(pcm.data(), pcm.size(), 16000, nBins);
+        REQUIRE(spec.shape() == std::vector<size_t>{nBins, 100});
+        for (size_t i = 0; i < spec.size(); ++i) {
+            REQUIRE(std::isfinite(spec.data()[i]));
+        }
+
+        // expected bin: whichever filter has the largest weight at the 440 Hz
+        // FFT bin (440 / (16000 / 400) = bin 11), derived from the filterbank
+        const auto fb = mel::filterbank(nBins, 400, 16000);
+        size_t expected = 0;
+        double bestWeight = -1.0;
+        for (size_t m = 0; m < nBins; ++m) {
+            const double w = fb[m * 201 + 11];
+            if (w > bestWeight) {
+                bestWeight = w;
+                expected = m;
+            }
+        }
+
+        std::vector<double> energy(nBins, 0.0);
+        for (size_t t = 0; t < 100; ++t) {
+            for (size_t m = 0; m < nBins; ++m) energy[m] += spec.data()[m * 100 + t];
+        }
+        size_t argmax = 0;
+        for (size_t m = 1; m < nBins; ++m) {
+            if (energy[m] > energy[argmax]) argmax = m;
+        }
+        INFO("nBins=" << nBins << " argmax=" << argmax << " expected=" << expected);
+        REQUIRE(argmax <= expected + 1);
+        REQUIRE(argmax + 1 >= expected);
+    }
+
+    REQUIRE_THROWS(frontend::logMelSpectrogram(pcm.data(), pcm.size(), 16000, 0));
+}
+
+TEST_CASE("logmel: short targets stay in bounds", "[frontend]") {
+    // targetSamples below the 200-sample reflect pad used to index before the
+    // start of the padded buffer (ASan: heap-buffer-overflow).
+    std::vector<float> pcm(1600, 0.05f);
+    for (const size_t target : {size_t(160), size_t(320), size_t(640)}) {
+        const auto spec = frontend::logMelSpectrogram(pcm.data(), target, target, 80);
+        REQUIRE(spec.shape() == std::vector<size_t>{80, target / 160});
+        for (size_t i = 0; i < spec.size(); ++i) {
+            REQUIRE(std::isfinite(spec.data()[i]));
+        }
+    }
+    // targets shorter than one hop cannot produce a frame
+    REQUIRE_THROWS(frontend::logMelSpectrogram(pcm.data(), size_t(100), size_t(100), 80));
+}
+
 TEST_CASE("logmel: window and filterbank match the tables embedded in the model", "[frontend][model]") {
     std::string path;
     if (!modelExists(path)) {

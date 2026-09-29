@@ -123,3 +123,46 @@ TEST_CASE("decoder with timestamps matches official whisper", "[decoder][model]"
     REQUIRE(generated.back() >= tok.timestampBegin());
     REQUIRE(tok.timestampSeconds(generated.back()) == Catch::Approx(10.5).margin(1e-9));
 }
+
+// The decoder must never place a token past the positional embedding / KV cache
+// (nCtx = 448 for tiny). Before this was capped, a long non-eot generation read
+// past dec.pos_emb and then threw "kvcache: overflow" out of the whole
+// transcription. Any [tAudio, dModel] audio works here: the encoder output is
+// only consumed by cross-attention.
+TEST_CASE("decoder stops at the context window instead of overflowing", "[decoder][model]") {
+    const std::string modelPath = ECHOSCRIBE_MODELS_DIR "/whisper-tiny-F16.gguf";
+    if (!fileExists(modelPath)) {
+        WARN("model missing, skipping context window test");
+        return;
+    }
+
+    gguf::File f = gguf::File::open(modelPath);
+    whisper::Tokenizer tok(f);
+    whisper::Decoder dec(f);
+    REQUIRE(dec.nCtx() == 448);
+
+    tensor::Tensor audio({1500, dec.dModel()});
+
+    // One free position left: at most one token, and no exception.
+    {
+        std::vector<size_t> prompt(dec.nCtx() - 1, 0);
+        std::vector<size_t> generated;
+        REQUIRE_NOTHROW(generated = dec.generate(audio, tok, prompt, /*noTimestamps=*/false, 448));
+        REQUIRE(generated.size() <= 1);
+    }
+
+    // Exactly full: nothing can be generated, but the call still succeeds.
+    {
+        std::vector<size_t> prompt(dec.nCtx(), 0);
+        std::vector<size_t> generated;
+        REQUIRE_NOTHROW(generated = dec.generate(audio, tok, prompt, /*noTimestamps=*/false, 448));
+        REQUIRE(generated.empty());
+    }
+
+    // Longer than the context: a clear error, not an out-of-bounds read.
+    {
+        std::vector<size_t> prompt(dec.nCtx() + 1, 0);
+        REQUIRE_THROWS(dec.generate(audio, tok, prompt, /*noTimestamps=*/false, 448));
+        REQUIRE_THROWS(dec.forwardLogits(audio, prompt));
+    }
+}

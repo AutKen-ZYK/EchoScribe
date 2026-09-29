@@ -119,12 +119,14 @@ std::vector<size_t> Decoder::generate(const tensor::Tensor& audio, const Tokeniz
     std::vector<ops::KVCache> selfCaches(blocks_.size());
     for (auto& c : selfCaches) c = ops::KVCache(nHead_, headDim_, nCtx_);
 
-    tensor::Tensor xIn({1, d});
     std::vector<float> logits(nVocab());
 
     auto computeLogits = [&](const std::vector<size_t>& seq, size_t from, size_t count) {
         // Embed tokens[from .. from+count) at absolute positions from..; appends
         // to the self-attention caches; logits come from the last row.
+        if (count == 0 || from + count > nCtx_) {
+            throw std::runtime_error("decoder: token positions exceed the context window");
+        }
         tensor::Tensor x({count, d});
         for (size_t i = 0; i < count; ++i) {
             const size_t tok = seq[from + i];
@@ -141,12 +143,22 @@ std::vector<size_t> Decoder::generate(const tensor::Tensor& audio, const Tokeniz
     };
 
     std::vector<size_t> seq = prompt;
+    if (seq.empty() || seq.size() > nCtx_) {
+        throw std::runtime_error("decoder: prompt of " + std::to_string(seq.size()) +
+                                 " tokens does not fit the context window of " +
+                                 std::to_string(nCtx_));
+    }
     computeLogits(seq, 0, seq.size());
 
     const size_t tsBegin = tok.timestampBegin();
 
     std::vector<size_t> generated;
     for (size_t step = 0; step < maxTokens; ++step) {
+        // One more token needs one more position: stop cleanly instead of
+        // running past the positional embedding / KV cache and throwing
+        // (whisper's own decoders cap the sample length the same way).
+        if (seq.size() >= nCtx_) break;
+
         std::vector<float> masked = logits;
         for (int32_t id : tok.suppressTokens()) {
             if (id >= 0 && static_cast<size_t>(id) < nVocab()) {
@@ -256,6 +268,11 @@ std::vector<float> Decoder::forwardLogits(const tensor::Tensor& audio,
                                           const std::vector<size_t>& tokens) const {
     const size_t d = dModel_;
     const size_t tAudio = audio.shape()[0];
+    if (tokens.empty() || tokens.size() > nCtx_) {
+        throw std::runtime_error("decoder: " + std::to_string(tokens.size()) +
+                                 " tokens do not fit the context window of " +
+                                 std::to_string(nCtx_));
+    }
 
     std::vector<tensor::Tensor> crossK(blocks_.size()), crossV(blocks_.size());
     for (size_t bi = 0; bi < blocks_.size(); ++bi) {

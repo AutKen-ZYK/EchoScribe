@@ -20,13 +20,14 @@ Real-time speech recognition from scratch in pure C++17: microphone in, timestam
 mic / wav ─> audio ─> frontend ─> encoder ─> decoder ─> text + timestamps ─> terminal
                          ▲                      │
                          │                      └── tokenizer <── vocab
-                  GGUF weights (mmap)
+                  GGUF weights
 
 src/
   tensor/     f32 tensor: shape/stride/reshape
-  gguf/       GGUF parser + mmap loader
+  gguf/       GGUF parser + mmap reader (tensors are expanded to f32 in RAM
+              at load time: ~2x the file size for an f16 model)
   ops/        hand-written operators
-  frontend/   FFT + 80-mel filterbank + log-mel
+  frontend/   FFT + Slaney mel filterbank + log-mel
   audio/      capture (miniaudio), resample, wav reader
   encoder/    Whisper encoder
   decoder/    autoregressive decode + KV cache
@@ -85,6 +86,9 @@ Notes:
 - Verify with `./build/echoscribe --list-tensors` (169 tensors, arch=whisper).
 - The classic `ggml-tiny.bin` from ggerganov/whisper.cpp is the **old GGML format** (magic `ggml`), *not* GGUF — do not use it.
 - Quantized variants (q4/q5/q8) exist but EchoScribe currently loads f32/f16 only.
+- The mel bin count is read from the encoder conv weight (80 for
+  tiny..large-v2, 128 for large-v3), so the frontend and the encoder cannot
+  disagree. large-v3 weights themselves have not been exercised yet.
 
 Model files are git-ignored; never commit weights.
 
